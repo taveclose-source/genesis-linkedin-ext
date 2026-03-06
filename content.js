@@ -1,3 +1,4 @@
+console.log('[EdenPro v2.2]');
 // ============================================================
 // content.js  (v2.2)
 // Main content script — runs on ALL linkedin.com/* pages
@@ -114,7 +115,7 @@ async function handlePostPage(scrapeData) {
 async function getProspect(linkedin_handle) {
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/prospects?linkedin_handle=eq.${encodeURIComponent(linkedin_handle)}&limit=1`,
+      `${SUPABASE_URL}/rest/v1/linkedin_prospects?linkedin_handle=eq.${encodeURIComponent(linkedin_handle)}&limit=1`,
       { headers: supabaseHeaders() }
     );
     const data = await res.json();
@@ -143,7 +144,7 @@ async function upsertProspect(linkedin_handle, scrapeData, existing) {
     payload.interaction_log = JSON.stringify([]);
   }
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/prospects`, {
+    await fetch(`${SUPABASE_URL}/rest/v1/linkedin_prospects`, {
       method: 'POST',
       headers: { ...supabaseHeaders(), 'Prefer': 'resolution=merge-duplicates' },
       body: JSON.stringify(payload)
@@ -158,7 +159,7 @@ async function upsertProspect(linkedin_handle, scrapeData, existing) {
 async function updateProspect(linkedin_handle, updates) {
   try {
     await fetch(
-      `${SUPABASE_URL}/rest/v1/prospects?linkedin_handle=eq.${encodeURIComponent(linkedin_handle)}`,
+      `${SUPABASE_URL}/rest/v1/linkedin_prospects?linkedin_handle=eq.${encodeURIComponent(linkedin_handle)}`,
       { method: 'PATCH', headers: supabaseHeaders(), body: JSON.stringify(updates) }
     );
   } catch (err) {
