@@ -1,4 +1,3 @@
-console.log('[EdenPro v2.2]');
 // ============================================================
 // content.js  (v2.2)
 // Main content script — runs on ALL linkedin.com/* pages
