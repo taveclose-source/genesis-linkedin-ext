@@ -57,9 +57,7 @@ async function handleProfilePage(scrapeData) {
   if (suppress) {
     if (prospect) {
       await updateProspect(handle, {
-        suppressed: true, suppress_reason: reason,
-        requeue_trigger: 'new_post_or_profile_update',
-        last_scraped_at: scrapeData.scraped_at
+        suppressed: true
       });
     }
     renderSidebarSuppressed(scrapeData, reason);
@@ -69,7 +67,7 @@ async function handleProfilePage(scrapeData) {
   const wasSuppressed = prospect?.suppressed;
   const hasPosts = (scrapeData.recent_posts || []).length > 0;
   if (wasSuppressed && hasPosts) {
-    await updateProspect(handle, { suppressed: false, suppress_reason: null });
+    await updateProspect(handle, { suppressed: false });
   }
 
   prospect = await upsertProspect(handle, scrapeData, prospect);
@@ -84,10 +82,8 @@ async function handleMessagingPage(scrapeData) {
     prospect = await getProspect(handle);
     if (prospect) {
       await updateProspect(handle, {
-        last_message_text: scrapeData.last_message?.text || null,
-        last_message_direction: scrapeData.last_sender || null,
         message_count: scrapeData.message_count || 0,
-        last_scraped_at: scrapeData.scraped_at
+        last_interaction_at: scrapeData.scraped_at
       });
     }
   }
@@ -101,8 +97,7 @@ async function handlePostPage(scrapeData) {
     prospect = await getProspect(handle);
     if (prospect) {
       await updateProspect(handle, {
-        last_post_viewed_url: scrapeData.post_url,
-        last_scraped_at: scrapeData.scraped_at
+        last_interaction_at: scrapeData.scraped_at
       });
     }
   }
@@ -112,56 +107,114 @@ async function handlePostPage(scrapeData) {
 // ----------------------------------------------------------------
 // SUPABASE HELPERS
 // ----------------------------------------------------------------
+
+// Translate internal field names → actual DB column names
+const FIELD_TO_DB = {
+  headline:            'title',
+  location:            'location_full',
+  stage:               'funnel_stage',
+  current_employer:    'company',
+  last_interaction_at: 'last_interaction_date',
+  created_at:          'date_added',
+  last_action_type:    'next_action_type',
+  message_count:       'messages_exchanged',
+};
+
+// Fields the code uses but that don't exist in DB — silently drop on write
+const DROP_FIELDS = new Set([
+  'linkedin_handle', 'recent_posts', 'interaction_log', 'last_scraped_at',
+  'suppress_reason', 'requeue_trigger', 'suppressed',
+  'last_message_text', 'last_message_direction', 'last_post_viewed_url',
+  'last_interaction_date',  // already mapped from last_interaction_at
+]);
+
+function toDbPayload(obj) {
+  const out = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (DROP_FIELDS.has(key)) continue;
+    const dbCol = FIELD_TO_DB[key] || key;
+    out[dbCol] = val;
+  }
+  // Map suppressed → monitoring_active (inverted)
+  if ('suppressed' in obj) {
+    out.monitoring_active = !obj.suppressed;
+  }
+  // next_action_date is a DATE column — truncate any timestamp
+  if (out.next_action_date && out.next_action_date.includes('T')) {
+    out.next_action_date = out.next_action_date.split('T')[0];
+  }
+  return out;
+}
+
+// Translate DB row → internal field names the code expects
+function normalizeProspect(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    linkedin_handle: row.linkedin_url?.match(/\/in\/([^/?#]+)/)?.[1] || null,
+    headline:        row.title,
+    location:        row.location_full,
+    stage:           row.funnel_stage,
+    current_employer: row.company,
+    last_interaction_at: row.last_interaction_date,
+    created_at:      row.date_added,
+    suppressed:      row.monitoring_active === false,
+  };
+}
+
+function handleToUrl(linkedin_handle) {
+  return `https://www.linkedin.com/in/${linkedin_handle}`;
+}
+
 async function getProspect(linkedin_handle) {
   try {
+    const url = handleToUrl(linkedin_handle);
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/linkedin_prospects?linkedin_handle=eq.${encodeURIComponent(linkedin_handle)}&limit=1`,
+      `${SUPABASE_URL}/rest/v1/linkedin_prospects?linkedin_url=eq.${encodeURIComponent(url)}&limit=1`,
       { headers: supabaseHeaders() }
     );
     const data = await res.json();
-    return data[0] || null;
+    return normalizeProspect(data[0]);
   } catch { return null; }
 }
 
 async function upsertProspect(linkedin_handle, scrapeData, existing) {
-  const payload = {
-    linkedin_handle,
-    name: scrapeData.name || existing?.name,
+  const fields = {
+    linkedin_url: scrapeData.linkedin_url,
+    name: scrapeData.name || existing?.name || 'Unknown',
     headline: scrapeData.headline || existing?.headline,
     location: scrapeData.location || existing?.location,
-    linkedin_url: scrapeData.linkedin_url,
     connection_status: scrapeData.connection_status,
     current_employer: scrapeData.current_employer || existing?.current_employer,
-    recent_posts: JSON.stringify(scrapeData.recent_posts || []),
-    last_scraped_at: scrapeData.scraped_at,
     suppressed: false
   };
   if (!existing) {
-    payload.stage = 'discovered';
-    payload.created_at = scrapeData.scraped_at;
-    payload.last_interaction_at = scrapeData.scraped_at;
-    payload.last_interaction_date = scrapeData.scraped_at;
-    payload.interaction_log = JSON.stringify([]);
+    fields.stage = 'discovered';
+    fields.created_at = scrapeData.scraped_at;
+    fields.last_interaction_at = scrapeData.scraped_at;
   }
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/linkedin_prospects`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/linkedin_prospects`, {
       method: 'POST',
       headers: { ...supabaseHeaders(), 'Prefer': 'resolution=merge-duplicates' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(toDbPayload(fields))
     });
+    if (!res.ok) console.error('[EdenPro] Upsert HTTP', res.status, await res.text());
     return await getProspect(linkedin_handle);
   } catch (err) {
     console.error('[EdenPro] Upsert failed:', err);
-    return existing || payload;
+    return existing || { ...fields, linkedin_handle };
   }
 }
 
 async function updateProspect(linkedin_handle, updates) {
   try {
-    await fetch(
-      `${SUPABASE_URL}/rest/v1/linkedin_prospects?linkedin_handle=eq.${encodeURIComponent(linkedin_handle)}`,
-      { method: 'PATCH', headers: supabaseHeaders(), body: JSON.stringify(updates) }
+    const url = handleToUrl(linkedin_handle);
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/linkedin_prospects?linkedin_url=eq.${encodeURIComponent(url)}`,
+      { method: 'PATCH', headers: supabaseHeaders(), body: JSON.stringify(toDbPayload(updates)) }
     );
+    if (!res.ok) console.error('[EdenPro] Update HTTP', res.status, await res.text());
   } catch (err) {
     console.error('[EdenPro] Update failed:', err);
   }
@@ -453,10 +506,8 @@ window.markActionComplete = async function(actionType, linkedin_handle) {
   await updateProspect(linkedin_handle, {
     stage: updated.stage,
     last_interaction_at: updated.last_interaction_at,
-    last_interaction_date: updated.last_interaction_at,
     last_action_type: updated.last_action_type,
-    next_action_date: updated.next_action_date,
-    interaction_log: JSON.stringify(updated.interaction_log)
+    next_action_date: updated.next_action_date
   });
   const scrapeData = await LinkedInContext.scrape();
   const freshProspect = await getProspect(linkedin_handle);
@@ -472,8 +523,7 @@ async function overrideStage(linkedin_handle, newStage) {
   const now = new Date().toISOString();
   await updateProspect(linkedin_handle, {
     stage: newStage,
-    last_interaction_at: now,
-    last_interaction_date: now
+    last_interaction_at: now
   });
   const scrapeData = await LinkedInContext.scrape();
   const freshProspect = await getProspect(linkedin_handle);
@@ -490,9 +540,7 @@ async function skipProspect30Days(linkedin_handle) {
   resumeDate.setDate(resumeDate.getDate() + 30);
   await updateProspect(linkedin_handle, {
     suppressed: true,
-    suppress_reason: 'Manual skip — 30 day cooldown',
-    next_action_date: resumeDate.toISOString(),
-    requeue_trigger: 'date_reached'
+    next_action_date: resumeDate.toISOString().split('T')[0]
   });
   const scrapeData = await LinkedInContext.scrape();
   renderSidebarSuppressed(scrapeData, 'Manual skip — will re-appear after ' + resumeDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '.');
