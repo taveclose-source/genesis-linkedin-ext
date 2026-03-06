@@ -1,0 +1,299 @@
+/* ============================================================
+   sidebar.css — EdenPro LinkedIn Prospector
+   ============================================================ */
+
+#edenpro-sidebar {
+  position: fixed;
+  top: 72px;
+  right: 0;
+  width: 280px;
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
+  background: #ffffff;
+  border-left: 3px solid #0a66c2;
+  border-top: 3px solid #0a66c2;
+  border-radius: 8px 0 0 8px;
+  box-shadow: -4px 4px 20px rgba(0,0,0,0.15);
+  z-index: 99999;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  color: #1d2226;
+}
+
+#edenpro-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #0a66c2;
+  color: white;
+  border-radius: 5px 0 0 0;
+}
+
+.edenpro-logo {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+
+#edenpro-toggle {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+#edenpro-body {
+  padding: 0;
+}
+
+.edenpro-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.edenpro-section:last-child {
+  border-bottom: none;
+}
+
+.edenpro-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #888;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.edenpro-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0a66c2;
+  margin-bottom: 2px;
+}
+
+.edenpro-headline {
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.edenpro-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-connected    { background: #d4edda; color: #155724; }
+.badge-pending      { background: #fff3cd; color: #856404; }
+.badge-not_connected { background: #f8d7da; color: #721c24; }
+.badge-unknown      { background: #e2e3e5; color: #383d41; }
+.badge-suppressed   { background: #e2e3e5; color: #555; }
+.badge-stage        { background: #e8f4fd; color: #0a66c2; }
+
+/* Action blocks */
+.edenpro-action {
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+
+.action-engage  { background: #e8f4fd; border-left: 3px solid #0a66c2; }
+.action-message { background: #f0f8f0; border-left: 3px solid #28a745; }
+.action-connect { background: #fff8e1; border-left: 3px solid #f0ad4e; }
+.action-wait    { background: #f5f5f5; border-left: 3px solid #aaa; color: #666; }
+.action-none    { background: #f5f5f5; color: #888; font-style: italic; }
+
+.action-label {
+  font-weight: 700;
+  font-size: 12px;
+  margin-bottom: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.priority-high   { color: #c0392b; font-size: 10px; }
+.priority-medium { color: #e67e22; font-size: 10px; }
+.priority-low    { color: #888;    font-size: 10px; }
+
+.edenpro-post-preview {
+  font-size: 11px;
+  color: #555;
+  background: rgba(0,0,0,0.04);
+  padding: 5px 7px;
+  border-radius: 4px;
+  margin: 4px 0;
+  line-height: 1.4;
+}
+
+.edenpro-suggested-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #666;
+  margin: 6px 0 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.edenpro-message-box {
+  font-size: 12px;
+  line-height: 1.5;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 7px 9px;
+  margin-bottom: 5px;
+  color: #1d2226;
+  transition: background 0.3s;
+}
+
+.edenpro-copy-btn,
+.edenpro-complete-btn {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-right: 5px;
+  margin-bottom: 4px;
+}
+
+.edenpro-copy-btn {
+  background: #e8f4fd;
+  color: #0a66c2;
+}
+
+.edenpro-complete-btn {
+  background: #28a745;
+  color: white;
+}
+
+.edenpro-copy-btn:hover    { background: #d0eaf8; }
+.edenpro-complete-btn:hover { background: #218838; }
+
+.edenpro-link {
+  display: inline-block;
+  font-size: 11px;
+  color: #0a66c2;
+  text-decoration: none;
+  margin-top: 3px;
+  margin-right: 8px;
+}
+
+.edenpro-reasoning {
+  font-size: 11px;
+  color: #888;
+  font-style: italic;
+  margin-top: 4px;
+}
+
+/* Posts list */
+.edenpro-post-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin-bottom: 5px;
+  font-size: 11px;
+  color: #555;
+  line-height: 1.3;
+}
+
+.edenpro-post-item.already-liked {
+  opacity: 0.6;
+}
+
+.post-type-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  background: #e8f4fd;
+  color: #0a66c2;
+  padding: 1px 5px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.post-snippet {
+  flex: 1;
+}
+
+/* History log */
+.edenpro-history-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  padding: 3px 0;
+  border-bottom: 1px solid #f0f0f0;
+  color: #555;
+}
+
+.history-action { font-weight: 600; }
+.history-date   { color: #aaa; }
+
+/* Stage override controls */
+.edenpro-stage-override {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+#edenpro-stage-select {
+  flex: 1;
+  padding: 3px 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1d2226;
+  background: #f9f9f9;
+  cursor: pointer;
+}
+
+#edenpro-stage-select:focus {
+  outline: none;
+  border-color: #0a66c2;
+}
+
+.edenpro-skip30-btn {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border: 1px solid #e67e22;
+  border-radius: 4px;
+  background: #fff8e1;
+  color: #e67e22;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.edenpro-skip30-btn:hover {
+  background: #e67e22;
+  color: white;
+}
+
+/* Misc */
+.edenpro-small   { font-size: 11px; color: #888; line-height: 1.4; }
+.edenpro-reason  { font-size: 12px; color: #666; margin: 4px 0; }
+.edenpro-loading { padding: 12px; color: #aaa; font-style: italic; text-align: center; }
+.edenpro-error   { padding: 12px; color: #c0392b; font-size: 12px; }
+.edenpro-idle    { padding: 12px; color: #aaa; font-size: 12px; text-align: center; }

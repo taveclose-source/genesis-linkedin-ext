@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Genesis Pipeline — LinkedIn Prospector",
+  "version": "2.1.0",
+  "description": "EdenPro LinkedIn intelligence layer — context-aware prospect tracking",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "https://mzvonofxmqnanyuebudg.supabase.co/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.linkedin.com/*"],
+      "js": ["js/linkedin-context.js", "js/action-engine.js", "content.js"],
+      "css": ["sidebar.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["sidebar.html", "icons/*"],
+      "matches": ["https://www.linkedin.com/*"]
+    }
+  ]
+}
