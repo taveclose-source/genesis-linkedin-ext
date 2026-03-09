@@ -69,40 +69,45 @@ function renderIndustryTags() {
 }
 
 // --- Tag input: keywords ---
-(function() {
-  var input = document.getElementById('search-keyword-input');
-  if (!input) return;
-  input.addEventListener('keydown', function(e) {
+console.log('[popup] Setting up keyword input listener...');
+var kwInput = document.getElementById('search-keyword-input');
+console.log('[popup] search-keyword-input element:', kwInput);
+if (kwInput) {
+  kwInput.addEventListener('keydown', function(e) {
+    console.log('[popup] Keyword input keydown:', e.key);
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
-      var val = input.value.trim().replace(/,+$/, '').trim();
+      var val = kwInput.value.trim().replace(/,+$/, '').trim();
+      console.log('[popup] Keyword val after trim:', JSON.stringify(val), 'current array:', JSON.stringify(searchKeywords));
       if (val && searchKeywords.indexOf(val) === -1) {
         searchKeywords.push(val);
-        console.log('[popup] Keyword added via push:', val, '— searchKeywords now:', JSON.stringify(searchKeywords));
+        console.log('[popup] Keyword PUSHED:', val, '— searchKeywords now:', JSON.stringify(searchKeywords));
         renderKeywordTags();
       }
-      input.value = '';
+      kwInput.value = '';
     }
   });
-})();
+  console.log('[popup] Keyword keydown listener attached OK');
+} else {
+  console.error('[popup] FAILED: search-keyword-input not found in DOM!');
+}
 
 // --- Tag input: industries ---
-(function() {
-  var input = document.getElementById('search-industry-input');
-  if (!input) return;
-  input.addEventListener('keydown', function(e) {
+var indInput = document.getElementById('search-industry-input');
+if (indInput) {
+  indInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
-      var val = input.value.trim().replace(/,+$/, '').trim();
+      var val = indInput.value.trim().replace(/,+$/, '').trim();
       if (val && searchIndustries.indexOf(val) === -1) {
         searchIndustries.push(val);
-        console.log('[popup] Industry added via push:', val, '— searchIndustries now:', JSON.stringify(searchIndustries));
+        console.log('[popup] Industry PUSHED:', val, '— searchIndustries now:', JSON.stringify(searchIndustries));
         renderIndustryTags();
       }
-      input.value = '';
+      indInput.value = '';
     }
   });
-})();
+}
 
 // --- Helper: get Supabase config from chrome.storage ---
 function getSupabaseConfig(callback) {
@@ -200,6 +205,25 @@ function applySearchParams(params) {
 // --- Save search params to Supabase tenant_linkedin_config ---
 document.getElementById('btn-save-search').addEventListener('click', function() {
   var el = document.getElementById('search-status');
+
+  // Auto-commit any text sitting in the input boxes before saving
+  if (kwInput && kwInput.value.trim()) {
+    var kwVal = kwInput.value.trim().replace(/,+$/, '').trim();
+    if (kwVal && searchKeywords.indexOf(kwVal) === -1) {
+      searchKeywords.push(kwVal);
+      renderKeywordTags();
+    }
+    kwInput.value = '';
+  }
+  if (indInput && indInput.value.trim()) {
+    var indVal = indInput.value.trim().replace(/,+$/, '').trim();
+    if (indVal && searchIndustries.indexOf(indVal) === -1) {
+      searchIndustries.push(indVal);
+      renderIndustryTags();
+    }
+    indInput.value = '';
+  }
+
   console.log('[popup] SAVE clicked — searchKeywords at save time:', JSON.stringify(searchKeywords));
   console.log('[popup] SAVE clicked — searchIndustries at save time:', JSON.stringify(searchIndustries));
   var geoString = document.getElementById('search-geography').value.trim();
