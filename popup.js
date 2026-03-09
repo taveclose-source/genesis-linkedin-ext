@@ -16,9 +16,9 @@ var searchKeywords = [];
 var searchIndustries = [];
 
 function getKeywords() { return searchKeywords; }
-function setKeywords(arr) { searchKeywords = arr; }
+function setKeywords(arr) { searchKeywords = arr; console.log('[popup] setKeywords called, now:', JSON.stringify(searchKeywords)); }
 function getIndustries() { return searchIndustries; }
-function setIndustries(arr) { searchIndustries = arr; }
+function setIndustries(arr) { searchIndustries = arr; console.log('[popup] setIndustries called, now:', JSON.stringify(searchIndustries)); }
 
 // --- Tab switching ---
 document.querySelectorAll('.tab').forEach(function(tab) {
@@ -29,48 +29,80 @@ document.querySelectorAll('.tab').forEach(function(tab) {
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
     // Re-render tags when Search tab activates (belt and suspenders)
     if (tab.dataset.tab === 'search') {
-      renderTags('search-keywords-tags', getKeywords, setKeywords);
-      renderTags('search-industries-tags', getIndustries, setIndustries);
+      renderKeywordTags();
+      renderIndustryTags();
     }
   });
 });
 
-// --- Tag input helper ---
-function setupTagInput(inputId, tagsContainerId, getArray, setArray) {
-  var input = document.getElementById(inputId);
-  if (!input) return;
-  input.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      var val = input.value.trim().replace(/,+$/, '').trim();
-      if (val && getArray().indexOf(val) === -1) {
-        setArray(getArray().concat(val));
-        renderTags(tagsContainerId, getArray, setArray);
-      }
-      input.value = '';
-    }
-  });
-}
-
-function renderTags(containerId, getArray, setArray) {
-  var container = document.getElementById(containerId);
+// --- Tag rendering ---
+function renderKeywordTags() {
+  var container = document.getElementById('search-keywords-tags');
   if (!container) return;
-  var arr = getArray();
-  container.innerHTML = arr.map(function(item, i) {
+  container.innerHTML = searchKeywords.map(function(item, i) {
     return '<span class="tag">' + item + '<span class="remove" data-idx="' + i + '">&times;</span></span>';
   }).join('');
   container.querySelectorAll('.remove').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var idx = parseInt(btn.dataset.idx);
-      var updated = getArray().filter(function(_, j) { return j !== idx; });
-      setArray(updated);
-      renderTags(containerId, getArray, setArray);
+      searchKeywords = searchKeywords.filter(function(_, j) { return j !== idx; });
+      console.log('[popup] Keyword removed, searchKeywords now:', JSON.stringify(searchKeywords));
+      renderKeywordTags();
     });
   });
 }
 
-setupTagInput('search-keyword-input', 'search-keywords-tags', getKeywords, setKeywords);
-setupTagInput('search-industry-input', 'search-industries-tags', getIndustries, setIndustries);
+function renderIndustryTags() {
+  var container = document.getElementById('search-industries-tags');
+  if (!container) return;
+  container.innerHTML = searchIndustries.map(function(item, i) {
+    return '<span class="tag">' + item + '<span class="remove" data-idx="' + i + '">&times;</span></span>';
+  }).join('');
+  container.querySelectorAll('.remove').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var idx = parseInt(btn.dataset.idx);
+      searchIndustries = searchIndustries.filter(function(_, j) { return j !== idx; });
+      console.log('[popup] Industry removed, searchIndustries now:', JSON.stringify(searchIndustries));
+      renderIndustryTags();
+    });
+  });
+}
+
+// --- Tag input: keywords ---
+(function() {
+  var input = document.getElementById('search-keyword-input');
+  if (!input) return;
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      var val = input.value.trim().replace(/,+$/, '').trim();
+      if (val && searchKeywords.indexOf(val) === -1) {
+        searchKeywords.push(val);
+        console.log('[popup] Keyword added via push:', val, '— searchKeywords now:', JSON.stringify(searchKeywords));
+        renderKeywordTags();
+      }
+      input.value = '';
+    }
+  });
+})();
+
+// --- Tag input: industries ---
+(function() {
+  var input = document.getElementById('search-industry-input');
+  if (!input) return;
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      var val = input.value.trim().replace(/,+$/, '').trim();
+      if (val && searchIndustries.indexOf(val) === -1) {
+        searchIndustries.push(val);
+        console.log('[popup] Industry added via push:', val, '— searchIndustries now:', JSON.stringify(searchIndustries));
+        renderIndustryTags();
+      }
+      input.value = '';
+    }
+  });
+})();
 
 // --- Helper: get Supabase config from chrome.storage ---
 function getSupabaseConfig(callback) {
@@ -159,8 +191,8 @@ function applySearchParams(params) {
   if (maxEl) maxEl.value = (params.maxResults != null) ? params.maxResults : DEFAULT_SEARCH_PARAMS.maxResults;
 
   // Render tags (critical: must happen AFTER arrays are set)
-  renderTags('search-keywords-tags', getKeywords, setKeywords);
-  renderTags('search-industries-tags', getIndustries, setIndustries);
+  renderKeywordTags();
+  renderIndustryTags();
 
   console.log('[popup] Tags rendered — keywords:', searchKeywords.length, 'industries:', searchIndustries.length);
 }
@@ -168,7 +200,10 @@ function applySearchParams(params) {
 // --- Save search params to Supabase tenant_linkedin_config ---
 document.getElementById('btn-save-search').addEventListener('click', function() {
   var el = document.getElementById('search-status');
+  console.log('[popup] SAVE clicked — searchKeywords at save time:', JSON.stringify(searchKeywords));
+  console.log('[popup] SAVE clicked — searchIndustries at save time:', JSON.stringify(searchIndustries));
   var geoString = document.getElementById('search-geography').value.trim();
+  console.log('[popup] SAVE clicked — geography value:', geoString);
   var locations = geoString.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
 
   // Transform flat keywords + locations into discovery_searches array
@@ -177,7 +212,7 @@ document.getElementById('btn-save-search').addEventListener('click', function() 
     return { query: keyword, locations: locations };
   });
 
-  console.log('[popup] Saving discovery_searches:', JSON.stringify(discoverySearches, null, 2));
+  console.log('[popup] discovery_searches payload to PATCH:', JSON.stringify(discoverySearches, null, 2));
 
   getSupabaseConfig(function(supa) {
     if (!supa) {
@@ -203,13 +238,16 @@ document.getElementById('btn-save-search').addEventListener('click', function() 
       body: JSON.stringify({ discovery_searches: discoverySearches }),
     })
     .then(function(resp) {
-      if (resp.ok) {
-        el.textContent = 'Search parameters saved to server!';
-        el.className = 'status-msg status-success';
-        console.log('[popup] Saved to Supabase successfully');
-      } else {
-        return resp.text().then(function(t) { throw new Error(t); });
-      }
+      console.log('[popup] PATCH response status:', resp.status, resp.statusText);
+      return resp.text().then(function(body) {
+        console.log('[popup] PATCH response body:', body);
+        if (resp.ok) {
+          el.textContent = 'Search parameters saved to server!';
+          el.className = 'status-msg status-success';
+        } else {
+          throw new Error('HTTP ' + resp.status + ': ' + body);
+        }
+      });
     })
     .catch(function(err) {
       console.error('[popup] Save error:', err);
