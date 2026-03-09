@@ -97,20 +97,37 @@
       letter-spacing: 0.5px;
       margin-bottom: 4px;
     }
-    .field input {
+    .field input, .field textarea, .field select {
       width: 100%;
       padding: 8px 10px;
       border: 1px solid #c8e6c9;
       border-radius: 6px;
       font-size: 13px;
-      font-family: monospace;
+      font-family: inherit;
       background: #fff;
       transition: border-color 0.15s;
     }
-    .field input:focus {
+    .field textarea {
+      resize: vertical;
+      min-height: 60px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .field input:focus, .field textarea:focus, .field select:focus {
       outline: none;
       border-color: #2E7D32;
       box-shadow: 0 0 0 2px rgba(46,125,50,0.12);
+    }
+    .field .hint {
+      font-size: 10px;
+      color: #999;
+      margin-top: 3px;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
     }
 
     .btn {
@@ -143,6 +160,14 @@
     }
     .btn-test:hover { background: #c8e6c9; }
 
+    .btn-secondary {
+      background: #e8f5e9;
+      color: #2E7D32;
+      width: 100%;
+      justify-content: center;
+    }
+    .btn-secondary:hover { background: #c8e6c9; }
+
     .status-msg {
       text-align: center;
       font-size: 12px;
@@ -167,6 +192,40 @@
       border-radius: 3px;
       font-size: 10px;
     }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      background: #e8f5e9;
+      color: #2E7D32;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .tag .remove {
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      opacity: 0.6;
+    }
+    .tag .remove:hover { opacity: 1; }
   </style>
 </head>
 <body>
@@ -182,8 +241,9 @@
   </div>
 
   <div class="tabs">
-    <div class="tab active" id="tab-btn-dashboard">Dashboard</div>
-    <div class="tab" id="tab-btn-settings">Settings</div>
+    <div class="tab active" data-tab="dashboard">Dashboard</div>
+    <div class="tab" data-tab="search">Search</div>
+    <div class="tab" data-tab="settings">Settings</div>
   </div>
 
   <!-- Dashboard -->
@@ -207,11 +267,63 @@
       </div>
     </div>
 
-    <div style="font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Recent Prospects</div>
+    <div class="section-label">Recent Prospects</div>
     <div class="recent-list" id="recent-list">
       <div style="color:#888;font-size:12px;text-align:center;padding:20px 0;">
         Connect Supabase in Settings to see data
       </div>
+    </div>
+  </div>
+
+  <!-- Search Parameters -->
+  <div class="tab-content" id="tab-search">
+    <div class="field">
+      <label>Keywords</label>
+      <input type="text" id="search-keyword-input" placeholder="Type and press Enter to add" />
+      <div class="hint">Job titles and roles to target</div>
+      <div class="tag-list" id="search-keywords-tags"></div>
+    </div>
+
+    <div class="field">
+      <label>Target Geography</label>
+      <textarea id="search-geography" placeholder="Sarasota, Bradenton, Lakewood Ranch, Venice"></textarea>
+      <div class="hint">Comma-separated cities or regions</div>
+    </div>
+
+    <div class="field">
+      <label>Industries</label>
+      <input type="text" id="search-industry-input" placeholder="Type and press Enter to add" />
+      <div class="hint">Industry verticals to target</div>
+      <div class="tag-list" id="search-industries-tags"></div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Connection Degree</label>
+        <select id="search-connection-degree">
+          <option value="any">Any</option>
+          <option value="1st">1st</option>
+          <option value="2nd" selected>2nd</option>
+          <option value="3rd">3rd</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Results per Run</label>
+        <div class="field-row" style="gap:6px;">
+          <input type="number" id="search-min-results" placeholder="Min" value="10" min="1" max="100" style="text-align:center;" />
+          <input type="number" id="search-max-results" placeholder="Max" value="25" min="1" max="100" style="text-align:center;" />
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="btn-save-search" style="margin-bottom:8px;">Save Search Parameters</button>
+    <button class="btn btn-secondary" id="btn-reset-search">Reset to Defaults</button>
+    <div class="status-msg" id="search-status"></div>
+
+    <div class="help-text" style="margin-top:14px;">
+      <strong>How it works:</strong> These parameters control which LinkedIn profiles the Discover engine targets.
+      Keywords become search queries combined with geography. Saves directly to the server —
+      changes take effect on the next Discovery run.
     </div>
   </div>
 
@@ -232,7 +344,7 @@
 
     <div class="help-text">
       <strong>Setup:</strong> Get these from your Supabase project dashboard under
-      Settings &rarr; API. Use the same project as EdenPro (<code>oynuryauuglbxjunzcrj</code>).
+      Settings &rarr; API. Use the same project as EdenPro (<code>mzvonofxmqnanyuebudg</code>).
       The extension needs the <code>linkedin_prospects</code> table &mdash; run the SQL migration first.
     </div>
   </div>

@@ -1,20 +1,239 @@
-// Tab switching
-document.getElementById('tab-btn-dashboard').addEventListener('click', function() {
-  document.getElementById('tab-btn-dashboard').classList.add('active');
-  document.getElementById('tab-btn-settings').classList.remove('active');
-  document.getElementById('tab-dashboard').classList.add('active');
-  document.getElementById('tab-settings').classList.remove('active');
+// ============================================================
+// Genesis Pipeline Popup — Dashboard, Search Params, Settings
+// ============================================================
+
+var DEFAULT_SEARCH_PARAMS = {
+  keywords: ['property manager', 'HOA board member', 'facilities manager', 'community association manager'],
+  geography: 'Sarasota, Bradenton, Lakewood Ranch, Venice, North Port',
+  industries: ['Property Management', 'HOA/Condo', 'Commercial Real Estate', 'Facilities Management'],
+  connectionDegree: '2nd',
+  minResults: 10,
+  maxResults: 25,
+};
+
+// --- Search params state ---
+var searchKeywords = [];
+var searchIndustries = [];
+
+function getKeywords() { return searchKeywords; }
+function setKeywords(arr) { searchKeywords = arr; }
+function getIndustries() { return searchIndustries; }
+function setIndustries(arr) { searchIndustries = arr; }
+
+// --- Tab switching ---
+document.querySelectorAll('.tab').forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    // Re-render tags when Search tab activates (belt and suspenders)
+    if (tab.dataset.tab === 'search') {
+      renderTags('search-keywords-tags', getKeywords, setKeywords);
+      renderTags('search-industries-tags', getIndustries, setIndustries);
+    }
+  });
 });
 
-document.getElementById('tab-btn-settings').addEventListener('click', function() {
-  document.getElementById('tab-btn-settings').classList.add('active');
-  document.getElementById('tab-btn-dashboard').classList.remove('active');
-  document.getElementById('tab-settings').classList.add('active');
-  document.getElementById('tab-dashboard').classList.remove('active');
+// --- Tag input helper ---
+function setupTagInput(inputId, tagsContainerId, getArray, setArray) {
+  var input = document.getElementById(inputId);
+  if (!input) return;
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      var val = input.value.trim().replace(/,+$/, '').trim();
+      if (val && getArray().indexOf(val) === -1) {
+        setArray(getArray().concat(val));
+        renderTags(tagsContainerId, getArray, setArray);
+      }
+      input.value = '';
+    }
+  });
+}
+
+function renderTags(containerId, getArray, setArray) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  var arr = getArray();
+  container.innerHTML = arr.map(function(item, i) {
+    return '<span class="tag">' + item + '<span class="remove" data-idx="' + i + '">&times;</span></span>';
+  }).join('');
+  container.querySelectorAll('.remove').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var idx = parseInt(btn.dataset.idx);
+      var updated = getArray().filter(function(_, j) { return j !== idx; });
+      setArray(updated);
+      renderTags(containerId, getArray, setArray);
+    });
+  });
+}
+
+setupTagInput('search-keyword-input', 'search-keywords-tags', getKeywords, setKeywords);
+setupTagInput('search-industry-input', 'search-industries-tags', getIndustries, setIndustries);
+
+// --- Helper: get Supabase config from chrome.storage ---
+function getSupabaseConfig(callback) {
+  chrome.storage.sync.get(['genesis_config'], function(result) {
+    var config = result.genesis_config;
+    if (config && config.supabaseUrl && config.supabaseAnonKey) {
+      callback(config);
+    } else {
+      callback(null);
+    }
+  });
+}
+
+// --- Load search params from Supabase tenant_linkedin_config ---
+function loadSearchParams() {
+  console.log('[popup] loadSearchParams called');
+  getSupabaseConfig(function(supa) {
+    if (!supa) {
+      console.log('[popup] No Supabase config — using defaults');
+      applySearchParams(DEFAULT_SEARCH_PARAMS);
+      return;
+    }
+    // Read discovery_searches from tenant_linkedin_config
+    var url = supa.supabaseUrl + '/rest/v1/tenant_linkedin_config?active=eq.true&limit=1';
+    fetch(url, {
+      headers: {
+        'apikey': supa.supabaseAnonKey,
+        'Authorization': 'Bearer ' + supa.supabaseAnonKey,
+      },
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(rows) {
+      console.log('[popup] tenant_linkedin_config response:', JSON.stringify(rows, null, 2));
+      if (!Array.isArray(rows) || rows.length === 0) {
+        console.log('[popup] No tenant config row — using defaults');
+        applySearchParams(DEFAULT_SEARCH_PARAMS);
+        return;
+      }
+      var row = rows[0];
+      var searches = row.discovery_searches || [];
+      // Transform discovery_searches array into flat format for UI
+      var keywords = [];
+      var locations = [];
+      searches.forEach(function(s) {
+        if (s.query && keywords.indexOf(s.query) === -1) {
+          keywords.push(s.query);
+        }
+        (s.locations || []).forEach(function(loc) {
+          if (locations.indexOf(loc) === -1) locations.push(loc);
+        });
+      });
+      var params = {
+        keywords: keywords.length > 0 ? keywords : DEFAULT_SEARCH_PARAMS.keywords,
+        geography: locations.length > 0 ? locations.join(', ') : DEFAULT_SEARCH_PARAMS.geography,
+        industries: DEFAULT_SEARCH_PARAMS.industries, // industries not in discovery_searches schema
+        connectionDegree: row.connection_degree || DEFAULT_SEARCH_PARAMS.connectionDegree,
+        minResults: row.min_results || DEFAULT_SEARCH_PARAMS.minResults,
+        maxResults: row.daily_action_limit || DEFAULT_SEARCH_PARAMS.maxResults,
+      };
+      applySearchParams(params);
+    })
+    .catch(function(err) {
+      console.error('[popup] Error loading from Supabase:', err);
+      applySearchParams(DEFAULT_SEARCH_PARAMS);
+    });
+  });
+}
+
+// --- Apply search params to the UI ---
+function applySearchParams(params) {
+  console.log('[popup] applySearchParams:', JSON.stringify(params, null, 2));
+
+  // Set arrays BEFORE rendering tags
+  searchKeywords = (params.keywords && params.keywords.length > 0) ? params.keywords.slice() : DEFAULT_SEARCH_PARAMS.keywords.slice();
+  searchIndustries = (params.industries && params.industries.length > 0) ? params.industries.slice() : DEFAULT_SEARCH_PARAMS.industries.slice();
+
+  // Set form fields
+  var geoEl = document.getElementById('search-geography');
+  var degEl = document.getElementById('search-connection-degree');
+  var minEl = document.getElementById('search-min-results');
+  var maxEl = document.getElementById('search-max-results');
+
+  if (geoEl) geoEl.value = (params.geography != null && params.geography !== '') ? params.geography : DEFAULT_SEARCH_PARAMS.geography;
+  if (degEl) degEl.value = params.connectionDegree || DEFAULT_SEARCH_PARAMS.connectionDegree;
+  if (minEl) minEl.value = (params.minResults != null) ? params.minResults : DEFAULT_SEARCH_PARAMS.minResults;
+  if (maxEl) maxEl.value = (params.maxResults != null) ? params.maxResults : DEFAULT_SEARCH_PARAMS.maxResults;
+
+  // Render tags (critical: must happen AFTER arrays are set)
+  renderTags('search-keywords-tags', getKeywords, setKeywords);
+  renderTags('search-industries-tags', getIndustries, setIndustries);
+
+  console.log('[popup] Tags rendered — keywords:', searchKeywords.length, 'industries:', searchIndustries.length);
+}
+
+// --- Save search params to Supabase tenant_linkedin_config ---
+document.getElementById('btn-save-search').addEventListener('click', function() {
+  var el = document.getElementById('search-status');
+  var geoString = document.getElementById('search-geography').value.trim();
+  var locations = geoString.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+
+  // Transform flat keywords + locations into discovery_searches array
+  // Each keyword becomes a search entry with all locations
+  var discoverySearches = searchKeywords.map(function(keyword) {
+    return { query: keyword, locations: locations };
+  });
+
+  console.log('[popup] Saving discovery_searches:', JSON.stringify(discoverySearches, null, 2));
+
+  getSupabaseConfig(function(supa) {
+    if (!supa) {
+      el.textContent = 'Configure Supabase in Settings first';
+      el.className = 'status-msg status-error';
+      setTimeout(function() { el.textContent = ''; }, 3000);
+      return;
+    }
+
+    el.textContent = 'Saving to server...';
+    el.className = 'status-msg';
+
+    // PATCH the tenant_linkedin_config row with updated discovery_searches
+    var url = supa.supabaseUrl + '/rest/v1/tenant_linkedin_config?active=eq.true';
+    fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'apikey': supa.supabaseAnonKey,
+        'Authorization': 'Bearer ' + supa.supabaseAnonKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ discovery_searches: discoverySearches }),
+    })
+    .then(function(resp) {
+      if (resp.ok) {
+        el.textContent = 'Search parameters saved to server!';
+        el.className = 'status-msg status-success';
+        console.log('[popup] Saved to Supabase successfully');
+      } else {
+        return resp.text().then(function(t) { throw new Error(t); });
+      }
+    })
+    .catch(function(err) {
+      console.error('[popup] Save error:', err);
+      el.textContent = 'Save failed: ' + err.message;
+      el.className = 'status-msg status-error';
+    })
+    .finally(function() {
+      setTimeout(function() { el.textContent = ''; }, 3000);
+    });
+  });
 });
 
-// Load saved config
-chrome.runtime.sendMessage({ action: 'getConfig' }, function(config) {
+// --- Reset to defaults ---
+document.getElementById('btn-reset-search').addEventListener('click', function() {
+  applySearchParams(DEFAULT_SEARCH_PARAMS);
+  var el = document.getElementById('search-status');
+  el.textContent = 'Reset to defaults (not saved yet)';
+  el.className = 'status-msg';
+  setTimeout(function() { el.textContent = ''; }, 3000);
+});
+
+// --- Load saved Supabase config + dashboard (direct chrome.storage read) ---
+chrome.storage.sync.get(['genesis_config'], function(result) {
+  var config = result.genesis_config;
   if (config && config.supabaseUrl) {
     document.getElementById('supabase-url').value = config.supabaseUrl;
     document.getElementById('supabase-key').value = config.supabaseAnonKey;
@@ -22,27 +241,27 @@ chrome.runtime.sendMessage({ action: 'getConfig' }, function(config) {
   }
 });
 
-// Save settings
+// --- Save Supabase settings ---
 document.getElementById('btn-save').addEventListener('click', function() {
   var config = {
     supabaseUrl: document.getElementById('supabase-url').value.trim().replace(/\/$/, ''),
     supabaseAnonKey: document.getElementById('supabase-key').value.trim(),
   };
-  chrome.runtime.sendMessage({ action: 'saveConfig', config: config }, function(resp) {
+  chrome.storage.sync.set({ genesis_config: config }, function() {
     var el = document.getElementById('settings-status');
-    if (resp && resp.success) {
+    if (chrome.runtime.lastError) {
+      el.textContent = 'Save failed: ' + chrome.runtime.lastError.message;
+      el.className = 'status-msg status-error';
+    } else {
       el.textContent = 'Settings saved!';
       el.className = 'status-msg status-success';
       loadDashboardStats(config);
-    } else {
-      el.textContent = 'Failed to save';
-      el.className = 'status-msg status-error';
     }
     setTimeout(function() { el.textContent = ''; }, 3000);
   });
 });
 
-// Test connection
+// --- Test Supabase connection ---
 document.getElementById('btn-test').addEventListener('click', function() {
   var config = {
     supabaseUrl: document.getElementById('supabase-url').value.trim().replace(/\/$/, ''),
@@ -63,7 +282,7 @@ document.getElementById('btn-test').addEventListener('click', function() {
   });
 });
 
-// Load dashboard stats
+// --- Load dashboard stats ---
 function loadDashboardStats(config) {
   if (!config.supabaseUrl || !config.supabaseAnonKey) return;
   var headers = {
@@ -79,20 +298,16 @@ function loadDashboardStats(config) {
 
       document.getElementById('stat-total').textContent = all.length;
 
-      // This week
       var weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
       var thisWeek = all.filter(function(r) { return r.date_added > weekAgo; });
       document.getElementById('stat-week').textContent = thisWeek.length;
 
-      // Connected
       var connected = all.filter(function(r) { return r.connection_sent === true; });
       document.getElementById('stat-connected').textContent = connected.length;
 
-      // Active discussions
       var active = all.filter(function(r) { return r.opportunity_level === 'Active Discussion'; });
       document.getElementById('stat-active').textContent = active.length;
 
-      // Recent list
       var recent = all.sort(function(a, b) {
         return (b.date_added || '').localeCompare(a.date_added || '');
       }).slice(0, 5);
@@ -115,3 +330,6 @@ function loadDashboardStats(config) {
       console.error('Dashboard load error:', err);
     });
 }
+
+// --- Init ---
+loadSearchParams();
