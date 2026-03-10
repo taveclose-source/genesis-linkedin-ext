@@ -250,8 +250,7 @@ document.getElementById('btn-save-search').addEventListener('click', function() 
     el.className = 'status-msg';
 
     // PATCH the tenant_linkedin_config row with updated discovery_searches
-    // Note: tenant_id is uuid column (currently null), using company_short as identifier
-    var url = supa.supabaseUrl + '/rest/v1/tenant_linkedin_config?company_short=eq.Genesis';
+    var url = supa.supabaseUrl + '/rest/v1/tenant_linkedin_config?tenant_id=eq.genesis';
     fetch(url, {
       method: 'PATCH',
       headers: {
